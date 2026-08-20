@@ -21,6 +21,7 @@ export interface Comment {
 export interface Complaint {
   id: string;
   authorId: string;
+  authorEmail?: string;
   title: string;
   category: string;
   urgency: Urgency;
@@ -34,10 +35,11 @@ export interface Complaint {
 interface ComplaintContextType {
   complaints: Complaint[];
   currentUserId: string | null;
+  currentUserEmail: string | null;
   currentUserRole: 'employee' | 'admin' | null;
-  login: (id: string, role: 'employee' | 'admin') => void;
+  login: (id: string, email: string, role: 'employee' | 'admin') => void;
   logout: () => void;
-  addComplaint: (complaint: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'comments'>) => void;
+  addComplaint: (complaint: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'authorEmail' | 'comments'>) => void;
   updateStatus: (id: string, status: ComplaintStatus) => void;
   addComment: (complaintId: string, text: string) => void;
   toast: { message: string; type: 'success' | 'info' | 'email' | 'error' } | null;
@@ -50,6 +52,7 @@ const ComplaintContext = createContext<ComplaintContextType | undefined>(undefin
 export function ComplaintProvider({ children }: { children: React.ReactNode }) {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<'employee' | 'admin' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'email' | 'error' } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,9 +60,11 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
   // Load User Auth
   useEffect(() => {
     const savedUser = localStorage.getItem('smart-user-id');
+    const savedEmail = localStorage.getItem('smart-user-email');
     const savedRole = localStorage.getItem('smart-user-role');
     if (savedUser && savedRole) {
       setCurrentUserId(savedUser);
+      if (savedEmail) setCurrentUserEmail(savedEmail);
       setCurrentUserRole(savedRole as 'employee' | 'admin');
     }
   }, []);
@@ -96,17 +101,21 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = (id: string, role: 'employee' | 'admin') => {
+  const login = (id: string, email: string, role: 'employee' | 'admin') => {
     setCurrentUserId(id);
+    setCurrentUserEmail(email);
     setCurrentUserRole(role);
     localStorage.setItem('smart-user-id', id);
+    localStorage.setItem('smart-user-email', email);
     localStorage.setItem('smart-user-role', role);
   };
 
   const logout = () => {
     setCurrentUserId(null);
+    setCurrentUserEmail(null);
     setCurrentUserRole(null);
     localStorage.removeItem('smart-user-id');
+    localStorage.removeItem('smart-user-email');
     localStorage.removeItem('smart-user-role');
   };
 
@@ -117,12 +126,13 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
     }, 4000);
   };
 
-  const addComplaint = async (complaintData: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'comments'>) => {
+  const addComplaint = async (complaintData: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'authorEmail' | 'comments'>) => {
     if (!currentUserId) return;
     const newComplaint: Complaint = {
       ...complaintData,
       id: Math.random().toString(36).substring(2, 9),
       authorId: currentUserId,
+      authorEmail: currentUserEmail || undefined,
       comments: [],
       status: 'Pending',
       createdAt: Date.now(),
@@ -147,7 +157,8 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
       current.map(c => {
         if (c.id === id) {
           if (status === 'Resolved' && c.status !== 'Resolved') {
-            showToast(`📧 Automated Email sent to ${c.authorId} regarding resolved ticket!`, 'email');
+            const emailStr = c.authorEmail ? `to ${c.authorEmail}` : `to ${c.authorId}`;
+            showToast(`📧 Automated Email sent ${emailStr} regarding resolved ticket!`, 'email');
           } else if (status === 'In Progress') {
             showToast('Ticket assigned!', 'info');
           }
@@ -194,7 +205,7 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ComplaintContext.Provider value={{ complaints, currentUserId, currentUserRole, login, logout, addComplaint, updateStatus, addComment, toast, showToast, isLoading }}>
+    <ComplaintContext.Provider value={{ complaints, currentUserId, currentUserEmail, currentUserRole, login, logout, addComplaint, updateStatus, addComment, toast, showToast, isLoading }}>
       {children}
       
       {toast && (

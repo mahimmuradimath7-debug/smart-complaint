@@ -10,12 +10,13 @@ export default function LoginGateway() {
   const { login } = useComplaint();
   const [activePortal, setActivePortal] = useState<'employee' | 'admin' | null>(null);
   const [idNumber, setIdNumber] = useState('');
+  const [email, setEmail] = useState('');
 
   const handleLogin = (e: React.FormEvent, type: 'employee' | 'admin') => {
     e.preventDefault();
-    if (!idNumber.trim()) return;
+    if (!idNumber.trim() || !email.trim()) return;
     
-    login(idNumber.trim(), type);
+    login(idNumber.trim(), email.trim(), type);
     
     if (type === 'employee') {
       router.push('/dashboard');
@@ -59,19 +60,30 @@ export default function LoginGateway() {
 
             <div className="mt-auto w-full pt-4 h-[72px]">
               {activePortal === 'employee' ? (
-                <form onSubmit={(e) => handleLogin(e, 'employee')} className="relative animate-in fade-in zoom-in duration-300">
-                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    autoFocus
-                    type="text" 
-                    placeholder="Enter Employee ID..." 
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                    className="w-full bg-white/80 border border-blue-200 rounded-2xl pl-11 pr-12 py-3 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 transition-all text-slate-700 shadow-sm"
-                  />
-                  <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors">
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                <form onSubmit={(e) => handleLogin(e, 'employee')} className="flex flex-col gap-3 animate-in fade-in zoom-in duration-300 w-full">
+                  <div className="relative">
+                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      autoFocus
+                      type="text" 
+                      placeholder="Enter Employee ID..." 
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      className="w-full bg-white/80 border border-blue-200 rounded-2xl pl-11 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 transition-all text-slate-700 shadow-sm"
+                    />
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      placeholder="Enter Gmail Address..." 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-white/80 border border-blue-200 rounded-2xl pl-4 pr-12 py-3 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 transition-all text-slate-700 shadow-sm"
+                    />
+                    <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors">
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </form>
               ) : (
                 <div className="flex items-center justify-center h-full gap-2 text-blue-600 font-medium">
@@ -83,7 +95,7 @@ export default function LoginGateway() {
 
           {/* Admin Portal Card */}
           <div 
-            onClick={() => { if (activePortal !== 'admin') { setActivePortal('admin'); setIdNumber(''); } }}
+            onClick={() => { if (activePortal !== 'admin') { setActivePortal('admin'); setIdNumber(''); setEmail(''); } }}
             className={`bg-white/70 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-10 flex flex-col items-center text-center gap-6 transition-all duration-300 relative overflow-hidden cursor-pointer ${activePortal === 'admin' ? 'ring-2 ring-emerald-500/50 shadow-[0_20px_40px_rgb(0,0,0,0.08)] scale-[1.02]' : 'hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1'}`}
           >
             <div className={`absolute top-0 left-0 w-full h-full bg-gradient-to-br from-emerald-500/5 to-teal-500/5 transition-opacity ${activePortal === 'admin' ? 'opacity-100' : 'opacity-0'}`}></div>
@@ -101,19 +113,30 @@ export default function LoginGateway() {
 
             <div className="mt-auto w-full pt-4 h-[72px]">
               {activePortal === 'admin' ? (
-                <form onSubmit={(e) => handleLogin(e, 'admin')} className="relative animate-in fade-in zoom-in duration-300">
-                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    autoFocus
-                    type="text" 
-                    placeholder="Enter Admin ID..." 
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                    className="w-full bg-white/80 border border-emerald-200 rounded-2xl pl-11 pr-12 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 transition-all text-slate-700 shadow-sm"
-                  />
-                  <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-700 transition-colors">
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                <form onSubmit={(e) => handleLogin(e, 'admin')} className="flex flex-col gap-3 animate-in fade-in zoom-in duration-300 w-full">
+                  <div className="relative">
+                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      autoFocus
+                      type="text" 
+                      placeholder="Enter Admin ID..." 
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      className="w-full bg-white/80 border border-emerald-200 rounded-2xl pl-11 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 transition-all text-slate-700 shadow-sm"
+                    />
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      placeholder="Enter Gmail Address..." 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-white/80 border border-emerald-200 rounded-2xl pl-4 pr-12 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 transition-all text-slate-700 shadow-sm"
+                    />
+                    <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-700 transition-colors">
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </form>
               ) : (
                 <div className="flex items-center justify-center h-full gap-2 text-emerald-600 font-medium">
