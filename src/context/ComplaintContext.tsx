@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import emailjs from '@emailjs/browser';
 
 // Initialize Supabase Client
 const supabaseUrl = 'https://sqcautxsrdsyakdonifg.supabase.co';
@@ -158,6 +159,25 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
         if (c.id === id) {
           if (status === 'Resolved' && c.status !== 'Resolved') {
             const emailStr = c.authorEmail ? `to ${c.authorEmail}` : `to ${c.authorId}`;
+            
+            if (c.authorEmail) {
+              // Send REAL Email using EmailJS
+              emailjs.send(
+                'service_uzur1yn', // Service ID
+                'template_tdotrr4', // Template ID
+                {
+                  to_email: c.authorEmail,
+                  ticket_id: c.id,
+                  ticket_title: c.title,
+                },
+                'azjTnJYp3VQ66L8DZ' // Public Key
+              ).then(() => {
+                console.log('Real email sent successfully to:', c.authorEmail);
+              }).catch((error) => {
+                console.error('Failed to send real email:', error);
+              });
+            }
+
             showToast(`📧 Automated Email sent ${emailStr} regarding resolved ticket!`, 'email');
           } else if (status === 'In Progress') {
             showToast('Ticket assigned!', 'info');
