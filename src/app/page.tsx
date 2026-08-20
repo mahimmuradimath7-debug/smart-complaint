@@ -7,16 +7,26 @@ import { useComplaint } from '@/context/ComplaintContext';
 
 export default function LoginGateway() {
   const router = useRouter();
-  const { login } = useComplaint();
+  const { login, showToast } = useComplaint();
   const [activePortal, setActivePortal] = useState<'employee' | 'admin' | null>(null);
   const [idNumber, setIdNumber] = useState('');
   const [email, setEmail] = useState('');
 
   const handleLogin = (e: React.FormEvent, type: 'employee' | 'admin') => {
     e.preventDefault();
-    if (!idNumber.trim() || !email.trim()) return;
+    const id = idNumber.trim();
+    const userEmail = email.trim();
+    if (!id || !userEmail) return;
+
+    // Security lock for Admin Portal
+    if (type === 'admin') {
+      if (id.toLowerCase() !== 'mahim' || userEmail.toLowerCase() !== 'mahimmuradimath7@gmail.com') {
+        showToast('Access Denied: Invalid Admin Credentials', 'error');
+        return;
+      }
+    }
     
-    login(idNumber.trim(), email.trim(), type);
+    login(id, userEmail, type);
     
     if (type === 'employee') {
       router.push('/dashboard');
