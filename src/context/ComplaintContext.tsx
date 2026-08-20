@@ -1,6 +1,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase Client
+const supabaseUrl = 'https://sqcautxsrdsyakdonifg.supabase.co';
+const supabaseKey = 'sb_publishable_awC1YTfItx6_dSaZq6e1uw_DDviUCJX';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export type ComplaintStatus = 'Pending' | 'In Progress' | 'Resolved';
 export type Urgency = 'Low' | 'Medium' | 'High';
@@ -19,7 +25,7 @@ export interface Complaint {
   category: string;
   urgency: Urgency;
   description: string;
-  image?: string | null; // Base64 string
+  image?: string | null;
   comments: Comment[];
   status: ComplaintStatus;
   createdAt: number;
@@ -34,53 +40,61 @@ interface ComplaintContextType {
   addComplaint: (complaint: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'comments'>) => void;
   updateStatus: (id: string, status: ComplaintStatus) => void;
   addComment: (complaintId: string, text: string) => void;
-  toast: { message: string; type: 'success' | 'info' | 'email' } | null;
-  showToast: (message: string, type?: 'success' | 'info' | 'email') => void;
+  toast: { message: string; type: 'success' | 'info' | 'email' | 'error' } | null;
+  showToast: (message: string, type?: 'success' | 'info' | 'email' | 'error') => void;
+  isLoading: boolean;
 }
 
 const ComplaintContext = createContext<ComplaintContextType | undefined>(undefined);
-
-const initialMockData: Complaint[] = [
-  { id: '1', authorId: 'E101', title: 'Coffee machine is broken', category: 'Maintenance', urgency: 'High', description: 'Leaking water', image: null, comments: [], status: 'Pending', createdAt: Date.now() - 600000 },
-  { id: '2', authorId: 'E102', title: 'Wi-Fi down in sector 4', category: 'IT', urgency: 'High', description: 'No connection', image: null, comments: [], status: 'In Progress', createdAt: Date.now() - 3600000 },
-];
 
 export function ComplaintProvider({ children }: { children: React.ReactNode }) {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<'employee' | 'admin' | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'email' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'email' | 'error' } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Load User Auth
   useEffect(() => {
-    const saved = localStorage.getItem('smart-complaints-v2');
-    if (saved) {
-      setComplaints(JSON.parse(saved));
-    } else {
-      setComplaints(initialMockData);
-      localStorage.setItem('smart-complaints-v2', JSON.stringify(initialMockData));
-    }
-
     const savedUser = localStorage.getItem('smart-user-id');
     const savedRole = localStorage.getItem('smart-user-role');
     if (savedUser && savedRole) {
       setCurrentUserId(savedUser);
       setCurrentUserRole(savedRole as 'employee' | 'admin');
     }
-
-    setIsLoaded(true);
   }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem('smart-complaints-v2', JSON.stringify(complaints));
-      } catch (e) {
-        console.error("Local storage full", e);
-        showToast("Storage quota exceeded! Try uploading a smaller image or clearing history.", 'email');
-      }
+  // Fetch Complaints from Supabase
+  const fetchComplaints = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('*')
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching complaints:", error);
+      showToast("Error loading database.", "error");
+    } else if (data) {
+      setComplaints(data as Complaint[]);
     }
-  }, [complaints, isLoaded]);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchComplaints();
+    
+    // Subscribe to realtime changes (if RLS allows)
+    const channel = supabase.channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, (payload) => {
+        fetchComplaints();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const login = (id: string, role: 'employee' | 'admin') => {
     setCurrentUserId(id);
@@ -96,14 +110,14 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('smart-user-role');
   };
 
-  const showToast = (message: string, type: 'success' | 'info' | 'email' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'info' | 'email' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
     }, 4000);
   };
 
-  const addComplaint = (complaintData: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'comments'>) => {
+  const addComplaint = async (complaintData: Omit<Complaint, 'id' | 'status' | 'createdAt' | 'authorId' | 'comments'>) => {
     if (!currentUserId) return;
     const newComplaint: Complaint = {
       ...complaintData,
@@ -113,11 +127,22 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
       status: 'Pending',
       createdAt: Date.now(),
     };
-    setComplaints([newComplaint, ...complaints]);
+    
+    // Optimistic UI update
+    setComplaints(prev => [newComplaint, ...prev]);
     showToast('Complaint submitted successfully!');
+
+    // Push to Supabase
+    const { error } = await supabase.from('complaints').insert([newComplaint]);
+    if (error) {
+      console.error("Insert Error", error);
+      showToast("Failed to sync to database.", "error");
+      fetchComplaints(); // revert
+    }
   };
 
-  const updateStatus = (id: string, status: ComplaintStatus) => {
+  const updateStatus = async (id: string, status: ComplaintStatus) => {
+    // Optimistic UI update
     setComplaints(current =>
       current.map(c => {
         if (c.id === id) {
@@ -131,23 +156,45 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
         return c;
       })
     );
+
+    // Push to Supabase
+    const { error } = await supabase.from('complaints').update({ status }).eq('id', id);
+    if (error) {
+      console.error("Update Status Error", error);
+      fetchComplaints(); // revert on failure
+    }
   };
 
-  const addComment = (complaintId: string, text: string) => {
+  const addComment = async (complaintId: string, text: string) => {
     if (!currentUserId) return;
+    
+    const targetComplaint = complaints.find(c => c.id === complaintId);
+    if (!targetComplaint) return;
+
     const newComment: Comment = {
       id: Math.random().toString(36).substring(2, 9),
       authorId: currentUserId,
       text,
       createdAt: Date.now()
     };
+
+    const updatedComments = [...targetComplaint.comments, newComment];
+
+    // Optimistic UI update
     setComplaints(current =>
-      current.map(c => c.id === complaintId ? { ...c, comments: [...c.comments, newComment] } : c)
+      current.map(c => c.id === complaintId ? { ...c, comments: updatedComments } : c)
     );
+
+    // Push to Supabase
+    const { error } = await supabase.from('complaints').update({ comments: updatedComments }).eq('id', complaintId);
+    if (error) {
+      console.error("Add Comment Error", error);
+      fetchComplaints(); // revert on failure
+    }
   };
 
   return (
-    <ComplaintContext.Provider value={{ complaints, currentUserId, currentUserRole, login, logout, addComplaint, updateStatus, addComment, toast, showToast }}>
+    <ComplaintContext.Provider value={{ complaints, currentUserId, currentUserRole, login, logout, addComplaint, updateStatus, addComment, toast, showToast, isLoading }}>
       {children}
       
       {toast && (
@@ -155,6 +202,7 @@ export function ComplaintProvider({ children }: { children: React.ReactNode }) {
           <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl border backdrop-blur-xl ${
             toast.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white shadow-emerald-500/20' 
             : toast.type === 'email' ? 'bg-purple-600/90 border-purple-500 text-white shadow-purple-600/20'
+            : toast.type === 'error' ? 'bg-red-500/90 border-red-400 text-white shadow-red-500/20'
             : 'bg-blue-500/90 border-blue-400 text-white shadow-blue-500/20'
           }`}>
             <span className="font-medium text-lg leading-tight">{toast.message}</span>
